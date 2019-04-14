@@ -16,7 +16,8 @@ import SPMUtility
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SourceKit
-import class Foundation.Pipe
+import Darwin
+import Foundation
 
 public struct TestSourceKitServer {
   public enum ConnectionKind {
@@ -28,8 +29,8 @@ public struct TestSourceKitServer {
       clientConnection: LocalConnection,
       serverConnection: LocalConnection)
     case jsonrpc(
-      clientToServer: Pipe,
-      serverToClient: Pipe,
+      clientEnd: CInt,
+      serverEnd: CInt,
       clientConnection: JSONRPCConection,
       serverConnection: JSONRPCConection)
   }
@@ -44,8 +45,14 @@ public struct TestSourceKitServer {
   /// The server, if it is in the same process.
   public let server: SourceKitServer?
 
-  public init(connectionKind: ConnectionKind = .local) {
+  public init(connectionKind: ConnectionKind = .local) throws {
      _ = initRequestsOnce
+
+    var socketFDs: [CInt] = [-1, -1]
+    let err = socketpair(PF_LOCAL, SOCK_STREAM, 0, &socketFDs)
+    guard err == 0 else {
+        throw NSError(domain: NSPOSIXErrorDomain, code: .init(errno), userInfo: ["func": "socketpair"])
+    }
 
     switch connectionKind {
       case .local:
@@ -62,22 +69,8 @@ public struct TestSourceKitServer {
         connImpl = .local(clientConnection: clientConnection, serverConnection: serverConnection)
 
       case .jsonrpc:
-        let clientToServer: Pipe = Pipe()
-        let serverToClient: Pipe = Pipe()
-
-        // FIXME: DispatchIO doesn't like when the Pipes close behind its back even after the tests
-        // finish. Until we fix the lifetime, leak.
-        _ = Unmanaged.passRetained(clientToServer)
-        _ = Unmanaged.passRetained(serverToClient)
-
-        let clientConnection = JSONRPCConection(
-          inFD: serverToClient.fileHandleForReading.fileDescriptor,
-          outFD: clientToServer.fileHandleForWriting.fileDescriptor
-        )
-        let serverConnection = JSONRPCConection(
-          inFD: clientToServer.fileHandleForReading.fileDescriptor,
-          outFD: serverToClient.fileHandleForWriting.fileDescriptor
-        )
+        let clientConnection = JSONRPCConection(socketFD: socketFDs[0])
+        let serverConnection = JSONRPCConection(socketFD: socketFDs[1])
 
         client = TestClient(server: clientConnection)
         server = SourceKitServer(client: serverConnection, buildSetup: TestSourceKitServer.buildSetup, onExit: {
@@ -88,8 +81,8 @@ public struct TestSourceKitServer {
         serverConnection.start(receiveHandler: server!)
 
         connImpl = .jsonrpc(
-          clientToServer: clientToServer,
-          serverToClient: serverToClient,
+          clientEnd: socketFDs[0],
+          serverEnd: socketFDs[1],
           clientConnection: clientConnection,
           serverConnection: serverConnection)
     }
@@ -101,7 +94,7 @@ public struct TestSourceKitServer {
       cc.close()
       sc.close()
 
-    case .jsonrpc(clientToServer: _, serverToClient: _, clientConnection: let cc, serverConnection: let sc):
+    case .jsonrpc(clientEnd: _, serverEnd: _, clientConnection: let cc, serverConnection: let sc):
       cc.close()
       sc.close()
     }

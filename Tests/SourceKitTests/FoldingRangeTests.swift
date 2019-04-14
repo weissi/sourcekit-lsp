@@ -80,7 +80,7 @@ final class FoldingRangeTests: XCTestCase {
   }
 
   func initialize(capabilities: FoldingRangeCapabilities) {
-    connection = TestSourceKitServer()
+    connection = try! TestSourceKitServer()
     sk = connection.client
     var documentCapabilities = TextDocumentClientCapabilities()
     documentCapabilities.foldingRange = capabilities
@@ -110,7 +110,7 @@ final class FoldingRangeTests: XCTestCase {
     return FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
   }
 
-  func testPartialLineFolding() {
+  func testPartialLineFolding() throws {
     var capabilities = FoldingRangeCapabilities()
     capabilities.lineFoldingOnly = false
     initialize(capabilities: capabilities)

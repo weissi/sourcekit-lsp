@@ -17,8 +17,8 @@ import XCTest
 
 final class SKTests: XCTestCase {
 
-    func testInitLocal() {
-      let c = TestSourceKitServer()
+    func testInitLocal() throws {
+      let c = try TestSourceKitServer()
 
       let sk = c.client
 
@@ -35,8 +35,8 @@ final class SKTests: XCTestCase {
       XCTAssertNotNil(initResult.capabilities.completionProvider)
     }
 
-    func testInitJSON() {
-      let c = TestSourceKitServer(connectionKind: .jsonrpc)
+    func testInitJSON() throws {
+      let c = try TestSourceKitServer(connectionKind: .jsonrpc)
 
       let sk = c.client
 

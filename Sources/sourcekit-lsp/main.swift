@@ -53,25 +53,26 @@ func parseArguments() throws -> BuildSetup {
     flags: buildFlags)
 }
 
-let clientConnection = JSONRPCConection(inFD: STDIN_FILENO, outFD: STDOUT_FILENO, closeHandler: {
-  exit(0)
-})
+try withStdInOutSocketAdapter(inFD: STDIN_FILENO, outFD: STDOUT_FILENO) { socket in
 
-Logger.shared.addLogHandler { message, _ in
-  clientConnection.send(LogMessage(type: .log, message: message))
+    let clientConnection = JSONRPCConection(socketFD: socket, closeHandler: {
+        exit(0)
+    })
+
+    Logger.shared.addLogHandler { message, _ in
+        clientConnection.send(LogMessage(type: .log, message: message))
+    }
+
+    let buildSetup: BuildSetup
+    do {
+        buildSetup = try parseArguments()
+    } catch {
+        fputs("error: \(error)\n", SPMLibc.stderr)
+        exit(1)
+    }
+
+    let server = SourceKitServer(client: clientConnection, buildSetup: buildSetup, onExit: {
+        clientConnection.close()
+    })
+    clientConnection.start(receiveHandler: server)
 }
-
-let buildSetup: BuildSetup
-do {
-  buildSetup = try parseArguments()
-} catch {
-  fputs("error: \(error)\n", SPMLibc.stderr)
-  exit(1)
-}
-
-let server = SourceKitServer(client: clientConnection, buildSetup: buildSetup, onExit: {
-  clientConnection.close()
-})
-clientConnection.start(receiveHandler: server)
-
-dispatchMain()

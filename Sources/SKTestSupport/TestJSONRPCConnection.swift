@@ -22,30 +22,23 @@ public typealias Notification = LanguageServerProtocol.Notification
 public let initRequestsOnce: Void = registerTestRequests()
 
 public struct TestJSONRPCConnection {
-  public let clientToServer: Pipe = Pipe()
-  public let serverToClient: Pipe = Pipe()
   public let client: TestClient
   public let clientConnection: JSONRPCConection
   public let server: TestServer
   public let serverConnection: JSONRPCConection
 
-  public init() {
+  public init() throws {
     _ = initRequestsOnce
 
-    // FIXME: DispatchIO doesn't like when the Pipes close behind its back even after the tests
-    // finish. Until we fix the lifetime, leak.
-    _ = Unmanaged.passRetained(clientToServer)
-    _ = Unmanaged.passRetained(serverToClient)
+    var socketFDs: [CInt] = [-1, -1]
+    let err = socketpair(PF_LOCAL, SOCK_STREAM, 0, &socketFDs)
+    guard err == 0 else {
+        throw NSError(domain: NSPOSIXErrorDomain, code: .init(errno), userInfo: ["func": "socketpair"])
+    }
 
-    clientConnection = JSONRPCConection(
-      inFD: serverToClient.fileHandleForReading.fileDescriptor,
-      outFD: clientToServer.fileHandleForWriting.fileDescriptor
-    )
+    clientConnection = JSONRPCConection(socketFD: socketFDs[0])
 
-    serverConnection = JSONRPCConection(
-      inFD: clientToServer.fileHandleForReading.fileDescriptor,
-      outFD: serverToClient.fileHandleForWriting.fileDescriptor
-    )
+    serverConnection = JSONRPCConection(socketFD: socketFDs[1])
 
     client = TestClient(server: clientConnection)
     server = TestServer(client: serverConnection)

@@ -20,7 +20,7 @@ class ConnectionPerfTests: PerfTestCase {
   var connection: TestJSONRPCConnection! = nil
 
   override func setUp() {
-    connection = TestJSONRPCConnection()
+    connection = try! TestJSONRPCConnection()
   }
 
   override func tearDown() {

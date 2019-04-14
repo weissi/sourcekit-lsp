@@ -58,7 +58,7 @@ let package = Package(
       // jsonrpc: LSP connection using jsonrpc over pipes.
       .target(
         name: "LanguageServerProtocolJSONRPC",
-        dependencies: ["LanguageServerProtocol"]),
+        dependencies: ["LanguageServerProtocol", "NIO", "NIOExtras", "NIOFoundationCompat"]),
       .testTarget(
         name: "LanguageServerProtocolJSONRPCTests",
         dependencies: ["LanguageServerProtocolJSONRPC", "SKTestSupport"]),
@@ -99,6 +99,8 @@ if getenv("SWIFTCI_USE_LOCAL_DEPS") == nil {
   package.dependencies += [
     .package(url: "https://github.com/apple/indexstore-db.git", .branch("master")),
     .package(url: "https://github.com/apple/swift-package-manager.git", .branch("master")),
+    .package(url: "https://github.com/apple/swift-nio.git", from: "2.0.0"),
+    .package(url: "https://github.com/apple/swift-nio-extras.git", from: "1.0.0"),
   ]
 } else {
   package.dependencies += [

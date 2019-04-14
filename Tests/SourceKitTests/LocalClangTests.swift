@@ -37,7 +37,7 @@ final class LocalClangTests: XCTestCase {
       XCTFail("cannot find clangd in toolchain")
     }
 
-    connection = TestSourceKitServer()
+    connection = try! TestSourceKitServer()
     sk = connection.client
     _ = try! sk.sendSync(InitializeRequest(
         processId: nil,

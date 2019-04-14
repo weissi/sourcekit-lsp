@@ -32,7 +32,7 @@ final class LocalSwiftTests: XCTestCase {
   var workspace: Workspace! = nil
 
   override func setUp() {
-    connection = TestSourceKitServer()
+    connection = try! TestSourceKitServer()
     sk = connection.client
     _ = try! sk.sendSync(InitializeRequest(
         processId: nil,

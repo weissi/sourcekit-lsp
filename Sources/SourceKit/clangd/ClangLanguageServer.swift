@@ -16,6 +16,7 @@ import Basic
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import Foundation
+import Darwin
 
 /// A thin wrapper over a connection to a clangd server providing build setting handling.
 final class ClangLanguageServerShim: LanguageServer {
@@ -123,13 +124,13 @@ extension ClangLanguageServerShim {
 
 func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildSettings: BuildSystem?) throws -> Connection {
 
-  let clientToServer: Pipe = Pipe()
-  let serverToClient: Pipe = Pipe()
+  var socketFDs: [CInt] = [-1, -1]
+  let err = socketpair(PF_LOCAL, SOCK_STREAM, 0, &socketFDs)
+  guard err == 0 else {
+    throw NSError(domain: NSPOSIXErrorDomain, code: .init(errno), userInfo: ["func": "socketpair"])
+  }
 
-  let connection = JSONRPCConection(
-    inFD: serverToClient.fileHandleForReading.fileDescriptor,
-    outFD: clientToServer.fileHandleForWriting.fileDescriptor
-  )
+  let connection = JSONRPCConection(socketFD: socketFDs[0])
 
   let connectionToShim = LocalConnection()
   let connectionToClient = LocalConnection()
@@ -155,8 +156,8 @@ func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildS
   process.arguments = [
     "-compile_args_from=lsp", // Provide compiler args programmatically.
   ]
-  process.standardOutput = serverToClient
-  process.standardInput = clientToServer
+  process.standardOutput = FileHandle(fileDescriptor: socketFDs[1], closeOnDealloc: false)
+  process.standardInput = FileHandle(fileDescriptor: socketFDs[1], closeOnDealloc: false)
   process.terminationHandler = { process in
     log("clangd exited: \(process.terminationReason) \(process.terminationStatus)")
     connection.close()
